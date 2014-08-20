@@ -48,9 +48,9 @@ struct __stud_config {
     char *CHROOT;
     uid_t UID;
     gid_t GID;
-    char *FRONT_IP;
+    char *FRONT_ADDR;
     char *FRONT_PORT;
-    char *BACK_IP;
+    char *BACK_ADDR;
     char *BACK_PORT;
     long NCORES;
     struct cert_files *CERT_FILES;

@@ -25,6 +25,7 @@
 #define ADDR_LEN 150
 #define PORT_LEN 6
 #define CFG_BOOL_ON "on"
+#define UNIX_SOCK_PREFIX "unix:"
 
 // BEGIN: configuration parameters
 #define CFG_CIPHERS "ciphers"
@@ -124,9 +125,9 @@ stud_config * config_new (void) {
   r->CHROOT             = NULL;
   r->UID                = 0;
   r->GID                = 0;
-  r->FRONT_IP           = NULL;
+  r->FRONT_ADDR         = NULL;
   r->FRONT_PORT         = strdup("8443");
-  r->BACK_IP            = strdup("127.0.0.1");
+  r->BACK_ADDR          = strdup("127.0.0.1");
   r->BACK_PORT          = strdup("8000");
   r->NCORES             = 1;
   r->CERT_FILES         = NULL;
@@ -163,9 +164,9 @@ void config_destroy (stud_config *cfg) {
 
   // free all members!
   if (cfg->CHROOT != NULL) free(cfg->CHROOT);
-  if (cfg->FRONT_IP != NULL) free(cfg->FRONT_IP);
+  if (cfg->FRONT_ADDR != NULL) free(cfg->FRONT_ADDR);
   if (cfg->FRONT_PORT != NULL) free(cfg->FRONT_PORT);
-  if (cfg->BACK_IP != NULL) free(cfg->BACK_IP);
+  if (cfg->BACK_ADDR != NULL) free(cfg->BACK_ADDR);
   if (cfg->BACK_PORT != NULL) free(cfg->BACK_PORT);
   if (cfg->CERT_FILES != NULL) {
     struct cert_files *curr = cfg->CERT_FILES, *next;
@@ -324,8 +325,8 @@ char * config_param_val_str (char *val) {
   return strdup(val);
 }
 
-int config_param_host_port_wildcard (char *str, char **addr, char **port, int wildcard_okay) {
-  int len = (str != NULL) ? strlen(str) : 0;
+int config_param_addr_port_wildcard (char *str, char **addr, char **port, int wildcard_okay) {
+  size_t len = (str != NULL) ? strlen(str) : 0;
   if (str == NULL || ! len) {
     config_error_set("Invalid/unset host/port string.");
     return 0;
@@ -353,6 +354,18 @@ int config_param_host_port_wildcard (char *str, char **addr, char **port, int wi
     // port
     x += 2;
     memcpy(port_buf, x, sizeof(port_buf) - 1);
+  }
+  // Unix socket: unix:path
+  else if (strncmp(str, UNIX_SOCK_PREFIX, sizeof(UNIX_SOCK_PREFIX) - 1) == 0) {
+	  if (len < sizeof(UNIX_SOCK_PREFIX)) {
+		  config_error_set("Invalid address '%s'.", str);
+		  return 0;
+	  }
+	  free(*port);
+	  *port = NULL;
+	  free(*addr);
+	  *addr = strdup(str + sizeof(UNIX_SOCK_PREFIX) - 1);
+	  return 1;
   }
   // OLD FORMAT: address,port
   else {
@@ -397,8 +410,8 @@ int config_param_host_port_wildcard (char *str, char **addr, char **port, int wi
   return 1;
 }
 
-int config_param_host_port (char *str, char **addr, char **port) {
-  return config_param_host_port_wildcard(str, addr, port, 0);
+int config_param_addr_port (char *str, char **addr, char **port) {
+  return config_param_addr_port_wildcard(str, addr, port, 0);
 }
 
 int config_param_val_int (char *str, int *dst) {
@@ -564,10 +577,10 @@ void config_param_validate (char *k, char *v, stud_config *cfg, char *file, int 
     r = config_param_val_bool(v, &cfg->PREFER_SERVER_CIPHERS);
   }
   else if (strcmp(k, CFG_FRONTEND) == 0) {
-    r = config_param_host_port_wildcard(v, &cfg->FRONT_IP, &cfg->FRONT_PORT, 1);
+    r = config_param_addr_port_wildcard(v, &cfg->FRONT_ADDR, &cfg->FRONT_PORT, 1);
   }
   else if (strcmp(k, CFG_BACKEND) == 0) {
-    r = config_param_host_port(v, &cfg->BACK_IP, &cfg->BACK_PORT);
+    r = config_param_addr_port(v, &cfg->BACK_ADDR, &cfg->BACK_PORT);
   }
   else if (strcmp(k, CFG_WORKERS) == 0) {
     r = config_param_val_intl_pos(v, &cfg->NCORES);
@@ -816,16 +829,21 @@ char * config_disp_gid (gid_t gid) {
   return tmp_buf;
 }
 
-char * config_disp_hostport (char *host, char *port) {
+char * config_disp_addrport (char *addr, char *port) {
   memset(tmp_buf, '\0', sizeof(tmp_buf));
-  if (host == NULL && port == NULL)
+  if (addr == NULL && port == NULL)
     return "";
 
+  if (port == NULL) {
+	  snprintf(tmp_buf, sizeof(tmp_buf), "%s%s", UNIX_SOCK_PREFIX, addr);
+	  return tmp_buf;
+  }
+
   strcat(tmp_buf, "[");
-  if (host == NULL)
+  if (addr == NULL)
     strcat(tmp_buf, "*");
   else {
-    strncat(tmp_buf, host, 40);
+    strncat(tmp_buf, addr, 40);
   }
   strcat(tmp_buf, "]:");
   strncat(tmp_buf, port, 5);
@@ -896,8 +914,11 @@ void config_print_usage_fd (char *prog, stud_config *cfg, FILE *out) {
   fprintf(out, "SOCKET:\n");
   fprintf(out, "\n");
   fprintf(out, "  --client                    Enable client proxy mode\n");
-  fprintf(out, "  -b  --backend=HOST,PORT     Backend [connect] (default is \"%s\")\n", config_disp_hostport(cfg->BACK_IP, cfg->BACK_PORT));
-  fprintf(out, "  -f  --frontend=HOST,PORT    Frontend [bind] (default is \"%s\")\n", config_disp_hostport(cfg->FRONT_IP, cfg->FRONT_PORT));
+  fprintf(out, "  -b  --backend=HOST,PORT|%sPATH\n", UNIX_SOCK_PREFIX);
+  fprintf(out, "                              Backend [connect]\n");
+  fprintf(out, "                              Either an IP HOST,PORT pair or a Unix socket PATH\n");
+  fprintf(out, "                              (default is \"%s\")\n", config_disp_addrport(cfg->BACK_ADDR, cfg->BACK_PORT));
+  fprintf(out, "  -f  --frontend=HOST,PORT    Frontend [bind] (default is \"%s\")\n", config_disp_addrport(cfg->FRONT_ADDR, cfg->FRONT_PORT));
 
 #ifdef USE_SHARED_CACHE
   fprintf(out, "\n");
@@ -975,14 +996,15 @@ void config_print_default (FILE *fd, stud_config *cfg) {
   fprintf(fd, "#\n");
   fprintf(fd, "# type: string\n");
   fprintf(fd, "# syntax: [HOST]:PORT\n");
-  fprintf(fd, FMT_QSTR, CFG_FRONTEND, config_disp_hostport(cfg->FRONT_IP, cfg->FRONT_PORT));
+  fprintf(fd, FMT_QSTR, CFG_FRONTEND, config_disp_addrport(cfg->FRONT_ADDR, cfg->FRONT_PORT));
   fprintf(fd, "\n");
 
   fprintf(fd, "# Upstream server address. REQUIRED.\n");
   fprintf(fd, "#\n");
   fprintf(fd, "# type: string\n");
-  fprintf(fd, "# syntax: [HOST]:PORT.\n");
-  fprintf(fd, FMT_QSTR, CFG_BACKEND, config_disp_hostport(cfg->BACK_IP, cfg->BACK_PORT));
+  fprintf(fd, "# syntax: [ADDRESS]:PORT (IP address).\n");
+  fprintf(fd, "# syntax: %sPATH (Unix socket address).\n", UNIX_SOCK_PREFIX);
+  fprintf(fd, FMT_QSTR, CFG_BACKEND, config_disp_addrport(cfg->BACK_ADDR, cfg->BACK_PORT));
   fprintf(fd, "\n");
 
   fprintf(fd, "# SSL x509 certificate file. REQUIRED.\n");

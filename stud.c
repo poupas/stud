@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <netdb.h>
 #include <sys/wait.h>
 #include <netinet/in.h>
@@ -883,7 +884,7 @@ static int create_main_socket() {
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE | AI_ADDRCONFIG;
-    const int gai_err = getaddrinfo(CONFIG->FRONT_IP, CONFIG->FRONT_PORT,
+    const int gai_err = getaddrinfo(CONFIG->FRONT_ADDR, CONFIG->FRONT_PORT,
                                     &hints, &ai);
     if (gai_err != 0) {
         ERR("{getaddrinfo}: [%s]\n", gai_strerror(gai_err));
@@ -924,15 +925,17 @@ static int create_main_socket() {
 /* Initiate a clear-text nonblocking connect() to the backend IP on behalf
  * of a newly connected upstream (encrypted) client*/
 static int create_back_socket() {
-    int s = socket(backaddr->ai_family, SOCK_STREAM, IPPROTO_TCP);
+    int s = socket(backaddr->ai_family, SOCK_STREAM, backaddr->ai_protocol);
 
     if (s == -1)
       return -1;
 
-    int flag = 1;
-    int ret = setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(flag));
-    if (ret == -1) {
-      perror("Couldn't setsockopt to backend (TCP_NODELAY)\n");
+    if (backaddr->ai_family == AF_INET || backaddr->ai_family == AF_INET6) {
+    	int flag = 1;
+    	int ret = setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(flag));
+    	if (ret == -1) {
+    		perror("Couldn't setsockopt to backend (TCP_NODELAY)\n");
+    	}
     }
     setnonblocking(s);
 
@@ -1756,18 +1759,42 @@ void drop_privileges() {
 
 
 void init_globals() {
-    /* backaddr */
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = 0;
-    const int gai_err = getaddrinfo(CONFIG->BACK_IP, CONFIG->BACK_PORT,
-                                    &hints, &backaddr);
-    if (gai_err != 0) {
-        ERR("{getaddrinfo}: [%s]", gai_strerror(gai_err));
-        exit(1);
-    }
+	// backend IP address
+	if (CONFIG->BACK_PORT) {
+		struct addrinfo hints;
+		memset(&hints, 0, sizeof hints);
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_flags = 0;
+		const int gai_err = getaddrinfo(CONFIG->BACK_ADDR, CONFIG->BACK_PORT,
+										&hints, &backaddr);
+		if (gai_err != 0) {
+			ERR("{getaddrinfo}: [%s]", gai_strerror(gai_err));
+			exit(1);
+		}
+	// backend Unix socket address
+	} else {
+		struct sockaddr_un *saddr = calloc(1, sizeof(struct sockaddr_un));
+		if (saddr == NULL) {
+			fail("calloc");
+		}
+		size_t addrlen = strlen(CONFIG->BACK_ADDR);
+		if (addrlen >= sizeof(saddr->sun_path)) {
+			ERR("Backend address path is too long.");
+			exit(1);
+		}
+		strncpy(saddr->sun_path, CONFIG->BACK_ADDR, addrlen);
+		saddr->sun_family = AF_UNIX;
+		addrlen += sizeof(saddr->sun_family);
+		backaddr = calloc(1, sizeof(struct addrinfo));
+		if (backaddr == NULL) {
+			fail("calloc");
+		}
+		backaddr->ai_addr = saddr;
+		backaddr->ai_addrlen = addrlen;
+		backaddr->ai_family = AF_UNIX;
+		backaddr->ai_protocol = 0;
+	}
 
 #ifdef USE_SHARED_CACHE
     if (CONFIG->SHARED_CACHE) {
