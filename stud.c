@@ -931,11 +931,11 @@ static int create_back_socket() {
       return -1;
 
     if (backaddr->ai_family == AF_INET || backaddr->ai_family == AF_INET6) {
-    	int flag = 1;
-    	int ret = setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(flag));
-    	if (ret == -1) {
-    		perror("Couldn't setsockopt to backend (TCP_NODELAY)\n");
-    	}
+        int flag = 1;
+        int ret = setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(flag));
+        if (ret == -1) {
+            perror("Couldn't setsockopt to backend (TCP_NODELAY)\n");
+        }
     }
     setnonblocking(s);
 
@@ -1759,42 +1759,42 @@ void drop_privileges() {
 
 
 void init_globals() {
-	// backend IP address
-	if (CONFIG->BACK_PORT) {
-		struct addrinfo hints;
-		memset(&hints, 0, sizeof hints);
-		hints.ai_family = AF_UNSPEC;
-		hints.ai_socktype = SOCK_STREAM;
-		hints.ai_flags = 0;
-		const int gai_err = getaddrinfo(CONFIG->BACK_ADDR, CONFIG->BACK_PORT,
-										&hints, &backaddr);
-		if (gai_err != 0) {
-			ERR("{getaddrinfo}: [%s]", gai_strerror(gai_err));
-			exit(1);
-		}
-	// backend Unix socket address
-	} else {
-		struct sockaddr_un *saddr = calloc(1, sizeof(struct sockaddr_un));
-		if (saddr == NULL) {
-			fail("calloc");
-		}
-		size_t addrlen = strlen(CONFIG->BACK_ADDR);
-		if (addrlen >= sizeof(saddr->sun_path)) {
-			ERR("Backend address path is too long.");
-			exit(1);
-		}
-		strncpy(saddr->sun_path, CONFIG->BACK_ADDR, addrlen);
-		saddr->sun_family = AF_UNIX;
-		addrlen += sizeof(saddr->sun_family);
-		backaddr = calloc(1, sizeof(struct addrinfo));
-		if (backaddr == NULL) {
-			fail("calloc");
-		}
-		backaddr->ai_addr = saddr;
-		backaddr->ai_addrlen = addrlen;
-		backaddr->ai_family = AF_UNIX;
-		backaddr->ai_protocol = 0;
-	}
+    // backend IP address
+    if (CONFIG->BACK_PORT) {
+        struct addrinfo hints;
+        memset(&hints, 0, sizeof hints);
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_flags = 0;
+        const int gai_err = getaddrinfo(CONFIG->BACK_ADDR, CONFIG->BACK_PORT,
+                                        &hints, &backaddr);
+        if (gai_err != 0) {
+            ERR("{getaddrinfo}: [%s]", gai_strerror(gai_err));
+            exit(1);
+        }
+    // backend Unix socket address
+    } else {
+        struct sockaddr_un *saddr = calloc(1, sizeof(struct sockaddr_un));
+        if (saddr == NULL) {
+            fail("calloc");
+        }
+        size_t addrlen = strlen(CONFIG->BACK_ADDR);
+        if (addrlen >= sizeof(saddr->sun_path)) {
+            ERR("Backend address path is too long.");
+            exit(1);
+        }
+        strncpy(saddr->sun_path, CONFIG->BACK_ADDR, addrlen);
+        saddr->sun_family = AF_UNIX;
+        addrlen += sizeof(saddr->sun_family);
+        backaddr = calloc(1, sizeof(struct addrinfo));
+        if (backaddr == NULL) {
+            fail("calloc");
+        }
+        backaddr->ai_addr = saddr;
+        backaddr->ai_addrlen = addrlen;
+        backaddr->ai_family = AF_UNIX;
+        backaddr->ai_protocol = 0;
+    }
 
 #ifdef USE_SHARED_CACHE
     if (CONFIG->SHARED_CACHE) {

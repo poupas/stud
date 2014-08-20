@@ -357,15 +357,15 @@ int config_param_addr_port_wildcard (char *str, char **addr, char **port, int wi
   }
   // Unix socket: unix:path
   else if (strncmp(str, UNIX_SOCK_PREFIX, sizeof(UNIX_SOCK_PREFIX) - 1) == 0) {
-	  if (len < sizeof(UNIX_SOCK_PREFIX)) {
-		  config_error_set("Invalid address '%s'.", str);
-		  return 0;
-	  }
-	  free(*port);
-	  *port = NULL;
-	  free(*addr);
-	  *addr = strdup(str + sizeof(UNIX_SOCK_PREFIX) - 1);
-	  return 1;
+      if (len < sizeof(UNIX_SOCK_PREFIX)) {
+          config_error_set("Invalid address '%s'.", str);
+          return 0;
+      }
+      free(*port);
+      *port = NULL;
+      free(*addr);
+      *addr = strdup(str + sizeof(UNIX_SOCK_PREFIX) - 1);
+      return 1;
   }
   // OLD FORMAT: address,port
   else {
@@ -835,8 +835,8 @@ char * config_disp_addrport (char *addr, char *port) {
     return "";
 
   if (port == NULL) {
-	  snprintf(tmp_buf, sizeof(tmp_buf), "%s%s", UNIX_SOCK_PREFIX, addr);
-	  return tmp_buf;
+      snprintf(tmp_buf, sizeof(tmp_buf), "%s%s", UNIX_SOCK_PREFIX, addr);
+      return tmp_buf;
   }
 
   strcat(tmp_buf, "[");
