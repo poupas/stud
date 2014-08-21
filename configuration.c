@@ -355,7 +355,7 @@ int config_param_addr_port_wildcard (char *str, char **addr, char **port, int wi
     x += 2;
     memcpy(port_buf, x, sizeof(port_buf) - 1);
   }
-  // Unix socket: unix:path
+  // UNIX SOCKET FORMAT: unix:path
   else if (strncmp(str, UNIX_SOCK_PREFIX, sizeof(UNIX_SOCK_PREFIX) - 1) == 0) {
       if (len < sizeof(UNIX_SOCK_PREFIX)) {
           config_error_set("Invalid address '%s'.", str);
