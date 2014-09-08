@@ -533,7 +533,7 @@ int config_param_shcupd_peer (char *str, stud_config *cfg) {
   memset(port, '\0', PORT_LEN);
 
   // try to parse address
-  if (! config_param_host_port(str, &addr, &port)) {
+  if (! config_param_addr_port(str, &addr, &port)) {
     r = 0;
     goto outta_parse_peer;
   }
@@ -598,7 +598,7 @@ void config_param_validate (char *k, char *v, stud_config *cfg, char *file, int 
   }
   else if (strcmp(k, CFG_SHARED_CACHE_LISTEN) == 0) {
     if (v != NULL && strlen(v) > 0)
-      r = config_param_host_port_wildcard(v, &cfg->SHCUPD_IP, &cfg->SHCUPD_PORT, 1);
+      r = config_param_addr_port_wildcard(v, &cfg->SHCUPD_IP, &cfg->SHCUPD_PORT, 1);
   }
   else if (strcmp(k, CFG_SHARED_CACHE_PEER) == 0) {
     r = config_param_shcupd_peer(v, cfg);
@@ -923,7 +923,7 @@ void config_print_usage_fd (char *prog, stud_config *cfg, FILE *out) {
 #ifdef USE_SHARED_CACHE
   fprintf(out, "\n");
   fprintf(out, "  -U  --shared-cache-listen=HOST,PORT\n");
-  fprintf(out, "                              Accept cache updates on UDP (Default: \"%s\")\n", config_disp_hostport(cfg->SHCUPD_IP, cfg->SHCUPD_PORT));
+  fprintf(out, "                              Accept cache updates on UDP (Default: \"%s\")\n", config_disp_addrport(cfg->SHCUPD_IP, cfg->SHCUPD_PORT));
   fprintf(out, "                              NOTE: This option requires enabled SSL session cache.\n");
   fprintf(out, "  -P  --shared-cache-peer=HOST,PORT\n");
   fprintf(out, "                              Send cache updates to specified peer\n");
@@ -1075,7 +1075,7 @@ void config_print_default (FILE *fd, stud_config *cfg) {
   fprintf(fd, "#\n");
   fprintf(fd, "# type: string\n");
   fprintf(fd, "# syntax: [HOST]:PORT\n");
-  fprintf(fd, FMT_QSTR, CFG_SHARED_CACHE_LISTEN, config_disp_hostport(cfg->SHCUPD_IP, cfg->SHCUPD_PORT));
+  fprintf(fd, FMT_QSTR, CFG_SHARED_CACHE_LISTEN, config_disp_addrport(cfg->SHCUPD_IP, cfg->SHCUPD_PORT));
   fprintf(fd, "\n");
 
   fprintf(fd, "# Shared cache peer address.\n");
@@ -1087,10 +1087,10 @@ void config_print_default (FILE *fd, stud_config *cfg) {
   fprintf(fd, "#\n");
   fprintf(fd, "# type: string\n");
   fprintf(fd, "# syntax: [HOST]:PORT\n");
-  fprintf(fd, "# " FMT_QSTR, CFG_SHARED_CACHE_PEER, config_disp_hostport(NULL, NULL));
+  fprintf(fd, "# " FMT_QSTR, CFG_SHARED_CACHE_PEER, config_disp_addrport(NULL, NULL));
   for (int i = 0; i < MAX_SHCUPD_PEERS; i++) {
     if (cfg->SHCUPD_PEERS[i].ip == NULL && cfg->SHCUPD_PEERS[i].port == NULL) break;
-    fprintf(fd, FMT_QSTR, CFG_SHARED_CACHE_PEER, config_disp_hostport(cfg->SHCUPD_PEERS[i].ip, cfg->SHCUPD_PEERS[i].port));
+    fprintf(fd, FMT_QSTR, CFG_SHARED_CACHE_PEER, config_disp_addrport(cfg->SHCUPD_PEERS[i].ip, cfg->SHCUPD_PEERS[i].port));
   }
   fprintf(fd, "\n");
 

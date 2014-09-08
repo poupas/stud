@@ -1760,8 +1760,8 @@ void drop_privileges() {
 
 void init_globals() {
     // backend IP address
+    struct addrinfo hints;
     if (CONFIG->BACK_PORT) {
-        struct addrinfo hints;
         memset(&hints, 0, sizeof hints);
         hints.ai_family = AF_UNSPEC;
         hints.ai_socktype = SOCK_STREAM;
@@ -1790,7 +1790,7 @@ void init_globals() {
         if (backaddr == NULL) {
             fail("calloc");
         }
-        backaddr->ai_addr = saddr;
+        backaddr->ai_addr = (struct sockaddr *) saddr;
         backaddr->ai_addrlen = addrlen;
         backaddr->ai_family = AF_UNIX;
         backaddr->ai_protocol = 0;
