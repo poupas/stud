@@ -66,6 +66,7 @@
 #include "ringbuffer.h"
 #include "shctx.h"
 #include "configuration.h"
+#include "perfdata.h"
 
 #ifndef MSG_NOSIGNAL
 # define MSG_NOSIGNAL 0
@@ -108,6 +109,10 @@ static int shcupd_socket;
 struct addrinfo *shcupd_peers[MAX_SHCUPD_PEERS+1];
 static unsigned char shared_secret[SHA_DIGEST_LENGTH];
 #endif /*USE_SHARED_CACHE*/
+
+#ifdef USE_PERFDATA
+static ev_timer perfdata_reporter;
+#endif /* USE_PERFDATA */
 
 long openssl_version;
 int create_workers;
@@ -190,6 +195,8 @@ typedef struct proxystate {
     } while(0)
 
 #define NULL_DEV "/dev/null"
+
+#define UNUSED(x) (void)(x)
 
 /* Set a file descriptor (socket) to non-blocking mode */
 static void setnonblocking(int fd) {
@@ -288,7 +295,7 @@ static void info_callback(const SSL *ssl, int where, int ret) {
 
 /* Handle incoming message updates */
 static void handle_shcupd(struct ev_loop *loop, ev_io *w, int revents) {
-    (void) revents;
+	UNUSED(revents);
     unsigned char msg[SHSESS_MAX_ENCODED_LEN], hash[EVP_MAX_MD_SIZE];
     ssize_t r;
     unsigned int hash_len;
@@ -541,22 +548,31 @@ static int create_shcupd_socket() {
 
 #endif /*USE_SHARED_CACHE */
 
+
+#ifdef USE_PERFDATA
+static void handle_report_perfdata(EV_P_ ev_timer *w, int revents) {
+	UNUSED(revents);
+	report_perfdata(config_name);
+	ev_timer_again(EV_A_ w);
+}
+#endif /* USE_PERFDATA*/
+
 /* 
  * callback method for openssl config password handling, effectively just 
  * copies the user data pointer contents to the buffer.  We pass the pointer
  * to the config password entry in to the calling method
  */
 int cfg_pw_callback(char *buf, int size, int rwflag, void *u) {
-   char *pw = (char*)u;
-   int pwlen = strlen(pw);
-   if (pwlen > size || pwlen <= 0)  {
-      LOG("(config file password callback) Invalid config file password entry.");
-      return 0;
-   }
-
-   memset(buf, '\0', size);
-   memcpy(buf, pw, size);
-   return strlen(pw);
+	UNUSED(rwflag);
+	char *pw = (char*)u;
+	int pwlen = strlen(pw);
+	if (pwlen > size || pwlen <= 0)  {
+		LOG("(config file password callback) Invalid config file password entry.");
+		return 0;
+	}
+	memset(buf, '\0', size);
+	snprintf(buf, "%s", pw, size);
+	return pwlen;
 }
 
 RSA *load_rsa_privatekey(SSL_CTX *ctx, const char *file) {
@@ -1017,7 +1033,7 @@ static void start_connect(proxystate *ps) {
  * write it into the upstream buffer and make sure the write event is
  * enabled for the upstream socket */
 static void clear_read(struct ev_loop *loop, ev_io *w, int revents) {
-    (void) revents;
+    UNUSED(revents);
     int t;
     proxystate *ps = (proxystate *)w->data;
     if (ps->want_shutdown) {
@@ -1048,7 +1064,7 @@ static void clear_read(struct ev_loop *loop, ev_io *w, int revents) {
 /* Write some data, previously received on the secure upstream socket,
  * out of the downstream buffer and onto the backend socket */
 static void clear_write(struct ev_loop *loop, ev_io *w, int revents) {
-    (void) revents;
+	UNUSED(revents);
     int t;
     proxystate *ps = (proxystate *)w->data;
     int fd = w->fd;
@@ -1130,7 +1146,7 @@ static void start_handshake(proxystate *ps, int err);
 /* Continue/complete the asynchronous connect() before starting data transmission
  * between front/backend */
 static void handle_connect(struct ev_loop *loop, ev_io *w, int revents) {
-    (void) revents;
+	UNUSED(revents);
     int t;
     proxystate *ps = (proxystate *)w->data;
     t = connect(ps->fd_down, backaddr->ai_addr, backaddr->ai_addrlen);
@@ -1298,7 +1314,7 @@ static int parse_haproxy_line(proxystate *ps, const char *buf) {
  * it and re-assigning remote-ip on the proxystate struct(read-proxy).
  */
 static void client_proxy_proxy(struct ev_loop *loop, ev_io *w, int revents) {
-    (void) revents;
+	UNUSED(revents);
     int t;
     char *proxy = tcp_proxy_line, *end = tcp_proxy_line + sizeof(tcp_proxy_line);
     proxystate *ps = (proxystate *)w->data;
@@ -1360,12 +1376,26 @@ static void client_proxy_proxy(struct ev_loop *loop, ev_io *w, int revents) {
  * let OpenSSL do what it likes with the socket and obey its requests for reads
  * or writes */
 static void client_handshake(struct ev_loop *loop, ev_io *w, int revents) {
-    (void) revents;
+	UNUSED(revents);
     int t;
+#ifdef USE_PERFDATA
+    struct perfdata *pdata = NULL;
+#endif
     proxystate *ps = (proxystate *)w->data;
 
     t = SSL_do_handshake(ps->ssl);
     if (t == 1) {
+#ifdef USE_PERFDATA
+    pdata = fetch_perfdata((size_t)child_num);
+    if (pdata != NULL) {
+    	pdata->conn++;
+    	if (SSL_session_reused(ps->ssl)) {
+    		pdata->ssl_hit++;
+    	} else {
+    		pdata->ssl_miss++;
+    	}
+    }
+#endif
         end_handshake(ps);
     }
     else {
@@ -1413,7 +1443,7 @@ static void handle_fatal_ssl_error(proxystate *ps, int err, int backend) {
 /* Read some data from the upstream secure socket via OpenSSL,
  * and buffer anything we get for writing to the backend */
 static void ssl_read(struct ev_loop *loop, ev_io *w, int revents) {
-    (void) revents;
+	UNUSED(revents);
     int t;
     proxystate *ps = (proxystate *)w->data;
     if (ps->want_shutdown) {
@@ -1450,7 +1480,7 @@ static void ssl_read(struct ev_loop *loop, ev_io *w, int revents) {
 /* Write some previously-buffered backend data upstream on the
  * secure socket using OpenSSL */
 static void ssl_write(struct ev_loop *loop, ev_io *w, int revents) {
-    (void) revents;
+	UNUSED(revents);
     int t;
     int sz;
     proxystate *ps = (proxystate *)w->data;
@@ -1486,11 +1516,11 @@ static void ssl_write(struct ev_loop *loop, ev_io *w, int revents) {
 }
 
 /* libev read handler for the bound socket.  Socket is accepted,
- * the proxystate is allocated and initalized, and we're off the races
+ * the proxystate is allocated and initialized, and we're off the races
  * connecting to the backend */
 static void handle_accept(struct ev_loop *loop, ev_io *w, int revents) {
-    (void) revents;
-    (void) loop;
+	UNUSED(revents);
+	UNUSED(loop);
     struct sockaddr_storage addr;
     socklen_t sl = sizeof(addr);
     int client = accept(w->fd, (struct sockaddr *) &addr, &sl);
@@ -1596,7 +1626,7 @@ static void handle_accept(struct ev_loop *loop, ev_io *w, int revents) {
 
 
 static void check_ppid(struct ev_loop *loop, ev_timer *w, int revents) {
-    (void) revents;
+	UNUSED(revents);
     pid_t ppid = getppid();
     if (ppid != master_pid) {
         ERR("{core} Process %d detected parent death, closing listener socket.\n", child_num);
@@ -1608,8 +1638,8 @@ static void check_ppid(struct ev_loop *loop, ev_timer *w, int revents) {
 }
 
 static void handle_clear_accept(struct ev_loop *loop, ev_io *w, int revents) {
-    (void) revents;
-    (void) loop;
+	UNUSED(revents);
+	UNUSED(loop);
     struct sockaddr_storage addr;
     socklen_t sl = sizeof(addr);
     int client = accept(w->fd, (struct sockaddr *) &addr, &sl);
@@ -2069,6 +2099,10 @@ int main(int argc, char **argv) {
 
     master_pid = getpid();
 
+#ifdef USE_PERFDATA
+    init_perfdata(CONFIG->NCORES);
+#endif
+
     start_children(0, CONFIG->NCORES);
 
 #ifdef USE_SHARED_CACHE
@@ -2080,9 +2114,21 @@ int main(int argc, char **argv) {
         ev_io_init(&shcupd_listener, handle_shcupd, shcupd_socket, EV_READ);
         ev_io_start(loop, &shcupd_listener);
 
-        ev_loop(loop, 0);
     }
 #endif /* USE_SHARED_CACHE */
+
+#ifdef USE_PERFDATA
+    if (!loop) {
+    	loop = ev_default_loop(EVFLAG_AUTO);
+    }
+    ev_init(&perfdata_reporter, handle_report_perfdata);
+    perfdata_reporter.repeat = 10.;
+    ev_timer_again(loop, &perfdata_reporter);
+#endif /* USE_PERFDATA */
+
+#if defined(USE_SHARED_CACHE) || defined(USE_PERFDATA)
+    ev_loop(loop, 0);
+#endif
 
     for (;;) {
         /* Sleep and let the children work.

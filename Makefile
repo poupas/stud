@@ -1,6 +1,8 @@
 # [g]make USE_xxxx=1
 #
-# USE_SHARED_CACHE   :   enable/disable a shared session cache (disabled by default)
+# USE_SHARED_CACHE:   enable/disable a shared session cache (disabled by default)
+# USE_PERFDATA:       enable/disable TLS performance counters (disabled by default)
+#   PERFDATA_REPORT_DIR may be defined to change report dir (default is "/tmp")
 
 DESTDIR =
 PREFIX  = /usr/local
@@ -26,6 +28,12 @@ ebtree:
 		echo "*** Download libebtree at http://1wt.eu/tools/ebtree/" ; \
 		echo "*** Untar it and make a link named 'ebtree' to point on it"; \
 		exit 1 )
+endif
+
+# Performance data counters
+ifneq ($(USE_PERFDATA),)
+CFLAGS	+= -DUSE_PERFDATA -D_PERFDATA_REPORT_DIR=$(PERFDATA_REPORT_DIR)
+OBJS	+= perfdata.o	
 endif
 
 # No config file support?

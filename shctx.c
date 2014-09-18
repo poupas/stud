@@ -349,8 +349,8 @@ int shared_context_init(SSL_CTX *ctx, int size)
 #endif /* USE_SYSCALL_FUTEX */
 		struct shared_session *prev,*cur;
 
-		shctx = (struct shared_context *)mmap(NULL, sizeof(struct shared_context)+(size*sizeof(struct shared_session)),
-								PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+		shctx = mmap(NULL, sizeof(struct shared_context)+(size*sizeof(struct shared_session)),
+				PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 		if (!shctx || shctx == MAP_FAILED)
 			return -1;
 

@@ -76,6 +76,8 @@ struct __stud_config {
 
 typedef struct __stud_config stud_config;
 
+char *config_name;
+
 char * config_error_get (void);
 stud_config * config_new (void);
 void config_destroy (stud_config *cfg);
