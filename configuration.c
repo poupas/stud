@@ -105,24 +105,6 @@ void config_die (char *fmt, ...) {
   exit(1);
 }
 
-static void config_name_set (char *config_path)
-{
-	if (!config_path) {
-		return;
-	}
-
-	char *conf_name = basename(config_path);
-	char *name = strdup(conf_name);
-
-	char *lastdot = strrchr(name, '.');
-	if (!lastdot) {
-		return;
-	}
-	*lastdot = '\0';
-
-	config_name = name;
-}
-
 stud_config * config_new (void) {
   stud_config *r = NULL;
   r = malloc(sizeof(stud_config));
@@ -1283,7 +1265,6 @@ void config_parse_cli(int argc, char **argv, stud_config *cfg) {
       case CFG_PARAM_CFGFILE:
         if (!config_file_parse(optarg, cfg))
           config_die("%s", config_error_get());
-        config_name_set(optarg);
         break;
       case CFG_PARAM_DEFCFG:
         config_print_default(stdout, cfg);

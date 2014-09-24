@@ -112,6 +112,7 @@ static unsigned char shared_secret[SHA_DIGEST_LENGTH];
 
 #ifdef USE_PERFDATA
 static ev_timer perfdata_reporter;
+static char *perfdata_path;
 #endif /* USE_PERFDATA */
 
 long openssl_version;
@@ -552,7 +553,7 @@ static int create_shcupd_socket() {
 #ifdef USE_PERFDATA
 static void handle_report_perfdata(EV_P_ ev_timer *w, int revents) {
 	UNUSED(revents);
-	report_perfdata(config_name);
+	report_perfdata(perfdata_path);
 	ev_timer_again(EV_A_ w);
 }
 #endif /* USE_PERFDATA*/
@@ -564,14 +565,13 @@ static void handle_report_perfdata(EV_P_ ev_timer *w, int revents) {
  */
 int cfg_pw_callback(char *buf, int size, int rwflag, void *u) {
 	UNUSED(rwflag);
-	char *pw = (char*)u;
+	char *pw = (char *) u;
 	int pwlen = strlen(pw);
 	if (pwlen > size || pwlen <= 0)  {
 		LOG("(config file password callback) Invalid config file password entry.");
 		return 0;
 	}
-	memset(buf, '\0', size);
-	snprintf(buf, "%s", pw, size);
+	snprintf(buf, size, "%s", pw);
 	return pwlen;
 }
 
@@ -2101,6 +2101,7 @@ int main(int argc, char **argv) {
 
 #ifdef USE_PERFDATA
     init_perfdata(CONFIG->NCORES);
+    perfdata_path = getenv("PERFDATA_PATH");
 #endif
 
     start_children(0, CONFIG->NCORES);

@@ -50,11 +50,14 @@ static void clear_perfdata(void)
 	memset(pdata, 0, sizeof(struct perfdata) * workers);
 }
 
-void report_perfdata(const char *config)
+void report_perfdata(const char *path)
 {
-
 	size_t hits = 0, misses = 0, conns = 0;
 	FILE *fp = NULL;
+
+	if (path == NULL) {
+		return;
+	}
 
 	for (size_t i = 0; i < workers; i++) {
 		hits += pdata[i].ssl_hit;
@@ -63,10 +66,6 @@ void report_perfdata(const char *config)
 	}
 
 	clear_perfdata();
-
-	if (perfdata_path == NULL) {
-		asprintf(&perfdata_path, "%s/%s", PERFDATA_REPORT_DIR, config);
-	}
 
 	for (int i = 0; i < 2; i++) {
 		if ( (fp = fopen(perfdata_path, "w")) != NULL) {
@@ -77,7 +76,17 @@ void report_perfdata(const char *config)
 			return;
 		}
 
-		int ret = mkdir(PERFDATA_REPORT_DIR, 0700);
+		char *parent = NULL, *path_copy = strdup(path);
+		if (path_copy == NULL) {
+			return;
+		}
+
+		parent = dirname(path_copy);
+		int ret = mkdir(parent, 0700);
+
+		free(parent);
+		free(path_copy);
+
 		if (ret != 0 && ret != EEXIST) {
 			return;
 		}

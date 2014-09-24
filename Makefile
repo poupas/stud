@@ -2,7 +2,6 @@
 #
 # USE_SHARED_CACHE:   enable/disable a shared session cache (disabled by default)
 # USE_PERFDATA:       enable/disable TLS performance counters (disabled by default)
-#   PERFDATA_REPORT_DIR may be defined to change report dir (default is "/tmp")
 
 DESTDIR =
 PREFIX  = /usr/local
@@ -32,7 +31,7 @@ endif
 
 # Performance data counters
 ifneq ($(USE_PERFDATA),)
-CFLAGS	+= -DUSE_PERFDATA -D_PERFDATA_REPORT_DIR=$(PERFDATA_REPORT_DIR)
+CFLAGS	+= -DUSE_PERFDATA
 OBJS	+= perfdata.o	
 endif
 
