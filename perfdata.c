@@ -11,7 +11,6 @@
 
 static struct perfdata *pdata = NULL;
 static size_t workers = 0;
-static char *perfdata_path = NULL;
 
 /* Initialize TLS/SSL performance data
  * worker_count is the number of active workers
@@ -45,11 +44,6 @@ struct perfdata *fetch_perfdata(size_t workerid)
 	return NULL;
 }
 
-static void clear_perfdata(void)
-{
-	memset(pdata, 0, sizeof(struct perfdata) * workers);
-}
-
 void report_perfdata(const char *path)
 {
 	size_t hits = 0, misses = 0, conns = 0;
@@ -65,10 +59,8 @@ void report_perfdata(const char *path)
 		conns += pdata[i].conn;
 	}
 
-	clear_perfdata();
-
 	for (int i = 0; i < 2; i++) {
-		if ( (fp = fopen(perfdata_path, "w")) != NULL) {
+		if ( (fp = fopen(path, "w")) != NULL) {
 			break;
 		}
 
@@ -76,16 +68,14 @@ void report_perfdata(const char *path)
 			return;
 		}
 
-		char *parent = NULL, *path_copy = strdup(path);
-		if (path_copy == NULL) {
-			return;
-		}
+		char *parent = NULL;
+		char path_copy[PATH_MAX];
+		strncpy(path_copy, path, PATH_MAX - 1);
 
 		parent = dirname(path_copy);
 		int ret = mkdir(parent, 0700);
 
 		free(parent);
-		free(path_copy);
 
 		if (ret != 0 && ret != EEXIST) {
 			return;
