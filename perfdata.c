@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <libgen.h>
+#include <limits.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
