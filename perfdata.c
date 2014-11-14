@@ -70,13 +70,16 @@ void report_perfdata(const char *path)
 		}
 
 		char *parent = NULL;
-		char path_copy[PATH_MAX];
-		strncpy(path_copy, path, PATH_MAX - 1);
+		char *path_copy = strdup(path);
+		if (path_copy == NULL) {
+			return;
+		}
 
 		parent = dirname(path_copy);
 		int ret = mkdir(parent, 0700);
 
 		free(parent);
+		free(path_copy);
 
 		if (ret != 0 && ret != EEXIST) {
 			return;
