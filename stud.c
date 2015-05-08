@@ -2126,7 +2126,7 @@ int main(int argc, char **argv) {
     	loop = ev_default_loop(EVFLAG_AUTO);
     }
     ev_init(&perfdata_reporter, handle_report_perfdata);
-    perfdata_reporter.repeat = 300.;
+    perfdata_reporter.repeat = (ev_tstamp) strtod(getenv("PERFDATA_RATE"), NULL);
     ev_timer_again(loop, &perfdata_reporter);
 #endif /* USE_PERFDATA */
 
